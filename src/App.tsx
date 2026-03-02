@@ -19,6 +19,9 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import Markdown from 'react-markdown';
 import { jsPDF } from 'jspdf';
+import html2canvas from 'html2canvas';
+import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
+import { saveAs } from 'file-saver';
 import { 
   SellerInfo, 
   BuyerInfo, 
@@ -41,6 +44,8 @@ export default function App() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [report, setReport] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'input' | 'preview'>('input');
+  const [showExportOptions, setShowExportOptions] = useState(false);
+  const reportRef = React.useRef<HTMLDivElement>(null);
 
   const [hasFetched, setHasFetched] = useState(false);
 
@@ -80,22 +85,85 @@ export default function App() {
     }
   };
 
-  const exportPDF = () => {
+  const exportPDF = async () => {
+    if (!reportRef.current) return;
+    setIsAnalyzing(true); // Show loading state during export
+    try {
+      const canvas = await html2canvas(reportRef.current, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff'
+      });
+      
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const imgProps = pdf.getImageProperties(imgData);
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+      
+      // Handle multi-page if content is too long
+      let heightLeft = pdfHeight;
+      let position = 0;
+      const pageHeight = pdf.internal.pageSize.getHeight();
+
+      pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, pdfHeight);
+      heightLeft -= pageHeight;
+
+      while (heightLeft >= 0) {
+        position = heightLeft - pdfHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, pdfHeight);
+        heightLeft -= pageHeight;
+      }
+
+      const fileName = `SPIKEDAI_Report_${buyer.company || buyer.name || 'Client'}.pdf`;
+      pdf.save(fileName);
+    } catch (error) {
+      console.error("PDF Export error:", error);
+    } finally {
+      setIsAnalyzing(false);
+      setShowExportOptions(false);
+    }
+  };
+
+  const exportWord = async () => {
     if (!report) return;
-    const doc = new jsPDF();
-    const title = `Comprehensive Sales Intelligence Report — ${buyer.name || buyer.company || 'Client'}`;
     
-    doc.setFontSize(22);
-    doc.setFont('playfair', 'bold');
-    doc.text(title, 20, 30);
-    
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'normal');
-    
-    const splitText = doc.splitTextToSize(report.replace(/#/g, ''), 170);
-    doc.text(splitText, 20, 50);
-    
-    doc.save(`${title.replace(/\s+/g, '_')}.pdf`);
+    const doc = new Document({
+      sections: [{
+        properties: {},
+        children: [
+          new Paragraph({
+            text: `SPIKEDAI Intelligence Report`,
+            heading: HeadingLevel.HEADING_1,
+          }),
+          new Paragraph({
+            text: `Strategic analysis for ${buyer.company || buyer.name}`,
+            heading: HeadingLevel.HEADING_2,
+          }),
+          ...report.split('\n').map(line => {
+            if (line.startsWith('# ')) {
+              return new Paragraph({ text: line.replace('# ', ''), heading: HeadingLevel.HEADING_1 });
+            } else if (line.startsWith('## ')) {
+              return new Paragraph({ text: line.replace('## ', ''), heading: HeadingLevel.HEADING_2 });
+            } else if (line.startsWith('### ')) {
+              return new Paragraph({ text: line.replace('### ', ''), heading: HeadingLevel.HEADING_3 });
+            } else {
+              return new Paragraph({
+                children: [new TextRun(line)],
+                spacing: { after: 200 }
+              });
+            }
+          })
+        ],
+      }],
+    });
+
+    const blob = await Packer.toBlob(doc);
+    const fileName = `SPIKEDAI_Report_${buyer.company || buyer.name || 'Client'}.docx`;
+    saveAs(blob, fileName);
+    setShowExportOptions(false);
   };
 
   return (
@@ -103,11 +171,14 @@ export default function App() {
       {/* Header */}
       <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-200">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center">
-              <Zap className="w-5 h-5 text-white" />
+          <div className="flex flex-col">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center">
+                <span className="text-white font-bold text-xl">!</span>
+              </div>
+              <span className="font-serif text-xl font-bold tracking-tight">SPIKED<span className="text-red-600">AI</span></span>
             </div>
-            <span className="font-serif text-xl font-bold tracking-tight">NEXUS <span className="text-slate-400 font-sans font-light text-sm ml-1 uppercase tracking-widest">Intelligence</span></span>
+            <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider -mt-0.5">Cognitive Intelligence Brain KYC document generator</span>
           </div>
           
           <div className="flex items-center gap-4">
@@ -438,24 +509,52 @@ export default function App() {
                   <h2 className="text-3xl font-serif font-bold">Intelligence Report</h2>
                   <p className="text-slate-500">Strategic analysis for {buyer.company || buyer.name}</p>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 relative">
                   <button 
                     onClick={() => setActiveTab('input')}
                     className="btn-secondary py-2 px-4"
                   >
                     Edit Parameters
                   </button>
-                  <button 
-                    onClick={exportPDF}
-                    className="btn-primary py-2 px-4"
-                  >
-                    <Download className="w-4 h-4" />
-                    Export PDF
-                  </button>
+                  <div className="relative">
+                    <button 
+                      onClick={() => setShowExportOptions(!showExportOptions)}
+                      className="btn-primary py-2 px-4"
+                    >
+                      <Download className="w-4 h-4" />
+                      Export Options
+                    </button>
+                    
+                    <AnimatePresence>
+                      {showExportOptions && (
+                        <motion.div 
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: 10 }}
+                          className="absolute right-0 mt-2 w-48 bg-white border border-slate-200 rounded-xl shadow-xl z-50 overflow-hidden"
+                        >
+                          <button 
+                            onClick={exportPDF}
+                            className="w-full px-4 py-3 text-left text-sm hover:bg-slate-50 flex items-center gap-2 border-b border-slate-100"
+                          >
+                            <FileText className="w-4 h-4 text-red-600" />
+                            Export as PDF
+                          </button>
+                          <button 
+                            onClick={exportWord}
+                            className="w-full px-4 py-3 text-left text-sm hover:bg-slate-50 flex items-center gap-2"
+                          >
+                            <FileText className="w-4 h-4 text-blue-600" />
+                            Export as Word
+                          </button>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
                 </div>
               </div>
 
-              <div className="glass-card p-12 min-h-[800px]">
+              <div ref={reportRef} className="glass-card p-12 min-h-[800px] bg-white">
                 {isAnalyzing ? (
                   <div className="flex flex-col items-center justify-center h-full py-40 gap-6">
                     <div className="relative">
@@ -558,26 +657,6 @@ export default function App() {
           )}
         </AnimatePresence>
       </main>
-
-      {/* Footer */}
-      <footer className="border-t border-slate-200 py-12 bg-white">
-        <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-8">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-black rounded flex items-center justify-center">
-              <Zap className="w-4 h-4 text-white" />
-            </div>
-            <span className="font-serif font-bold">NEXUS</span>
-          </div>
-          
-          <div className="flex items-center gap-8 text-xs font-bold uppercase tracking-widest text-slate-400">
-            <a href="#" className="hover:text-black transition-colors">Methodology</a>
-            <a href="#" className="hover:text-black transition-colors">Privacy</a>
-            <a href="#" className="hover:text-black transition-colors">Enterprise</a>
-          </div>
-          
-          <p className="text-xs text-slate-400">© 2026 Nexus Intelligence Engine. All rights reserved.</p>
-        </div>
-      </footer>
     </div>
   );
 }

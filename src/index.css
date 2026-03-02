@@ -31,34 +31,39 @@
   }
 }
 
-.markdown-body h1 { @apply text-3xl font-serif font-bold mb-6 mt-8 border-b pb-2; }
-.markdown-body h2 { @apply text-2xl font-serif font-semibold mb-4 mt-8; }
-.markdown-body h3 { @apply text-xl font-sans font-bold mb-3 mt-6 uppercase tracking-wider text-slate-600; }
-.markdown-body p { @apply mb-4 leading-relaxed text-slate-700; }
-.markdown-body ul { @apply list-disc pl-6 mb-4 space-y-2; }
-.markdown-body li { @apply text-slate-700; }
-.markdown-body strong { @apply font-semibold text-black; }
-.markdown-body blockquote { @apply border-l-4 border-slate-200 pl-4 italic text-slate-500 my-6 bg-slate-50/50 py-4 pr-4 rounded-r-lg; }
+.markdown-body h1 { @apply text-4xl font-serif font-black mb-8 mt-12 border-b-2 border-red-600/20 pb-4 text-slate-900 tracking-tight; }
+.markdown-body h2 { @apply text-2xl font-serif font-bold mb-6 mt-10 text-slate-800 flex items-center gap-2; }
+.markdown-body h2::before { content: ''; @apply w-1.5 h-8 bg-red-600 rounded-full inline-block; }
+.markdown-body h3 { @apply text-lg font-sans font-extrabold mb-4 mt-8 uppercase tracking-widest text-slate-500 border-l-4 border-slate-200 pl-4; }
+.markdown-body p { @apply mb-5 leading-relaxed text-slate-600 text-[15px]; }
+.markdown-body ul { @apply list-disc pl-6 mb-6 space-y-3; }
+.markdown-body li { @apply text-slate-600 leading-relaxed; }
+.markdown-body strong { @apply font-bold text-slate-900; }
+.markdown-body blockquote { @apply border-l-4 border-slate-300 pl-6 italic text-slate-500 my-8 bg-slate-50/80 py-6 pr-6 rounded-r-2xl shadow-sm; }
 
 /* Custom Callout Box Styles */
 .callout-box {
-  @apply my-8 p-6 rounded-xl border-l-4 shadow-sm;
+  @apply my-10 p-8 rounded-2xl border-l-8 shadow-md transition-all hover:shadow-lg hover:-translate-y-0.5;
 }
 .callout-key-insight {
-  @apply bg-blue-50/50 border-blue-500 text-blue-900;
+  @apply bg-blue-50/80 border-blue-600 text-blue-950;
 }
 .callout-hidden-risk {
-  @apply bg-amber-50/50 border-amber-500 text-amber-900;
+  @apply bg-red-50/80 border-red-600 text-red-950;
 }
 .callout-tactical-edge {
-  @apply bg-emerald-50/50 border-emerald-500 text-emerald-900;
+  @apply bg-emerald-50/80 border-emerald-600 text-emerald-950;
 }
 
 .callout-label {
-  @apply block text-xs font-bold uppercase tracking-widest mb-2;
+  @apply block text-[10px] font-black uppercase tracking-[0.2em] mb-3 opacity-70;
 }
 
-.markdown-body table { @apply w-full border-collapse my-8 text-sm; }
-.markdown-body th { @apply bg-slate-50 border border-slate-200 p-3 text-left font-bold text-slate-600; }
-.markdown-body td { @apply border border-slate-200 p-3 text-slate-700; }
+.markdown-body table { @apply w-full border-collapse my-10 text-[14px] overflow-hidden rounded-xl shadow-sm border border-slate-100; }
+.markdown-body thead { @apply bg-slate-900 text-white; }
+.markdown-body th { @apply p-4 text-left font-bold tracking-wider uppercase text-[11px]; }
+.markdown-body td { @apply p-4 border-b border-slate-50 text-slate-600 transition-colors; }
+.markdown-body tr:last-child td { @apply border-b-0; }
+.markdown-body tr:nth-child(even) { @apply bg-slate-50/50; }
+.markdown-body tr:hover td { @apply bg-red-50/30 text-slate-900; }
 
