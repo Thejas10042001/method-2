@@ -1,5 +1,5 @@
 {
   "name": "SPIKEDAI - Cognitive Intelligence Brain KYC Document Generator",
   "description": "Cognitive Intelligence Brain KYC document generator that creates deep buyer research, psychological profiles, and strategic outreach playbooks.",
-  "requestFramePermissions": []
+  "requestFramePermissions": ["geolocation"]
 }

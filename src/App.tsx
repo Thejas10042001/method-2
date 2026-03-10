@@ -87,34 +87,41 @@ export default function App() {
 
   const exportPDF = async () => {
     if (!reportRef.current) return;
-    setIsAnalyzing(true); // Show loading state during export
+    setIsAnalyzing(true);
     try {
-      const canvas = await html2canvas(reportRef.current, {
+      const element = reportRef.current;
+      const canvas = await html2canvas(element, {
         scale: 2,
         useCORS: true,
         logging: false,
-        backgroundColor: '#ffffff'
+        backgroundColor: '#ffffff',
+        windowWidth: element.scrollWidth,
+        windowHeight: element.scrollHeight
       });
       
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF('p', 'mm', 'a4');
-      const imgProps = pdf.getImageProperties(imgData);
       const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+      const pdfHeight = pdf.internal.pageSize.getHeight();
       
-      // Handle multi-page if content is too long
-      let heightLeft = pdfHeight;
+      const imgProps = pdf.getImageProperties(imgData);
+      const imgHeight = (imgProps.height * pdfWidth) / imgProps.width;
+      
+      let heightLeft = imgHeight;
       let position = 0;
-      const pageHeight = pdf.internal.pageSize.getHeight();
+      let page = 1;
 
-      pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, pdfHeight);
-      heightLeft -= pageHeight;
+      // Add first page
+      pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight, undefined, 'FAST');
+      heightLeft -= pdfHeight;
 
-      while (heightLeft >= 0) {
-        position = heightLeft - pdfHeight;
+      // Add subsequent pages
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight;
         pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, pdfHeight);
-        heightLeft -= pageHeight;
+        pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight, undefined, 'FAST');
+        heightLeft -= pdfHeight;
+        page++;
       }
 
       const fileName = `SPIKEDAI_Report_${buyer.company || buyer.name || 'Client'}.pdf`;
@@ -130,39 +137,118 @@ export default function App() {
   const exportWord = async () => {
     if (!report) return;
     
+    // Better markdown parsing for Word
+    const lines = report.split('\n');
+    const children: any[] = [
+      new Paragraph({
+        text: `SPIKEDAI Intelligence Report`,
+        heading: HeadingLevel.HEADING_1,
+        alignment: "center",
+        spacing: { after: 400 }
+      }),
+      new Paragraph({
+        text: `Strategic analysis for ${buyer.company || buyer.name}`,
+        heading: HeadingLevel.HEADING_2,
+        alignment: "center",
+        spacing: { after: 800 }
+      }),
+    ];
+
+    let currentList: any[] = [];
+    let inList = false;
+
+    lines.forEach((line) => {
+      const trimmed = line.trim();
+      
+      // Handle Headings
+      if (trimmed.startsWith('# ')) {
+        children.push(new Paragraph({ text: trimmed.replace('# ', ''), heading: HeadingLevel.HEADING_1, spacing: { before: 400, after: 200 } }));
+      } else if (trimmed.startsWith('## ')) {
+        children.push(new Paragraph({ text: trimmed.replace('## ', ''), heading: HeadingLevel.HEADING_2, spacing: { before: 300, after: 150 } }));
+      } else if (trimmed.startsWith('### ')) {
+        children.push(new Paragraph({ text: trimmed.replace('### ', ''), heading: HeadingLevel.HEADING_3, spacing: { before: 200, after: 100 } }));
+      } 
+      // Handle Lists
+      else if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+        children.push(new Paragraph({
+          text: trimmed.substring(2),
+          bullet: { level: 0 },
+          spacing: { after: 100 }
+        }));
+      }
+      // Handle Blockquotes (Callouts)
+      else if (trimmed.startsWith('> ')) {
+        let text = trimmed.substring(2);
+        let color = "000000";
+        let label = "Insight";
+
+        if (text.includes('[!KEY_INSIGHT]')) {
+          text = text.replace('[!KEY_INSIGHT]', '').trim();
+          color = "2563eb";
+          label = "KEY INSIGHT";
+        } else if (text.includes('[!HIDDEN_RISK]')) {
+          text = text.replace('[!HIDDEN_RISK]', '').trim();
+          color = "dc2626";
+          label = "HIDDEN RISK";
+        } else if (text.includes('[!TACTICAL_EDGE]')) {
+          text = text.replace('[!TACTICAL_EDGE]', '').trim();
+          color = "059669";
+          label = "TACTICAL EDGE";
+        }
+
+        children.push(new Paragraph({
+          children: [
+            new TextRun({ text: `${label}: `, bold: true, color }),
+            new TextRun({ text, italics: true })
+          ],
+          spacing: { before: 200, after: 200 },
+          indent: { left: 720 }
+        }));
+      }
+      // Handle Normal Paragraphs
+      else if (trimmed.length > 0) {
+        children.push(new Paragraph({
+          children: [new TextRun(trimmed)],
+          spacing: { after: 200 }
+        }));
+      }
+    });
+
     const doc = new Document({
       sections: [{
-        properties: {},
-        children: [
-          new Paragraph({
-            text: `SPIKEDAI Intelligence Report`,
-            heading: HeadingLevel.HEADING_1,
-          }),
-          new Paragraph({
-            text: `Strategic analysis for ${buyer.company || buyer.name}`,
-            heading: HeadingLevel.HEADING_2,
-          }),
-          ...report.split('\n').map(line => {
-            if (line.startsWith('# ')) {
-              return new Paragraph({ text: line.replace('# ', ''), heading: HeadingLevel.HEADING_1 });
-            } else if (line.startsWith('## ')) {
-              return new Paragraph({ text: line.replace('## ', ''), heading: HeadingLevel.HEADING_2 });
-            } else if (line.startsWith('### ')) {
-              return new Paragraph({ text: line.replace('### ', ''), heading: HeadingLevel.HEADING_3 });
-            } else {
-              return new Paragraph({
-                children: [new TextRun(line)],
-                spacing: { after: 200 }
-              });
-            }
-          })
-        ],
+        properties: {
+          page: {
+            margin: {
+              top: 1440, // 1 inch
+              right: 1440,
+              bottom: 1440,
+              left: 1440,
+            },
+          },
+        },
+        children
       }],
     });
 
     const blob = await Packer.toBlob(doc);
     const fileName = `SPIKEDAI_Report_${buyer.company || buyer.name || 'Client'}.docx`;
     saveAs(blob, fileName);
+    setShowExportOptions(false);
+  };
+
+  const exportJSON = () => {
+    const data = {
+      metadata: {
+        generatedAt: new Date().toISOString(),
+        engine: "SPIKEDAI Cognitive Intelligence",
+      },
+      seller,
+      buyer,
+      report
+    };
+    
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    saveAs(blob, `SPIKEDAI_Data_${buyer.company || buyer.name || 'Client'}.json`);
     setShowExportOptions(false);
   };
 
@@ -542,10 +628,17 @@ export default function App() {
                           </button>
                           <button 
                             onClick={exportWord}
-                            className="w-full px-4 py-3 text-left text-sm hover:bg-slate-50 flex items-center gap-2"
+                            className="w-full px-4 py-3 text-left text-sm hover:bg-slate-50 flex items-center gap-2 border-b border-slate-100"
                           >
                             <FileText className="w-4 h-4 text-blue-600" />
                             Export as Word
+                          </button>
+                          <button 
+                            onClick={exportJSON}
+                            className="w-full px-4 py-3 text-left text-sm hover:bg-slate-50 flex items-center gap-2"
+                          >
+                            <FileText className="w-4 h-4 text-emerald-600" />
+                            Export Raw Data (JSON)
                           </button>
                         </motion.div>
                       )}
@@ -554,7 +647,7 @@ export default function App() {
                 </div>
               </div>
 
-              <div ref={reportRef} className="glass-card p-12 min-h-[800px] bg-white">
+              <div ref={reportRef} className="glass-card p-12 min-h-[800px] bg-white shadow-xl border-slate-200/50">
                 {isAnalyzing ? (
                   <div className="flex flex-col items-center justify-center h-full py-40 gap-6">
                     <div className="relative">
